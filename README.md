@@ -14,6 +14,9 @@
   <a style="text-decoration:none">
     <img src="https://img.shields.io/badge/platform-windows-blue" alt="Platform" />
   </a>
+    <a style="text-decoration:none">
+    <img src="[https://img.shields.io/badge/platform-windows-blue](https://img.shields.io/github/license/:user/:repo)" alt="Platform" />
+  </a>
 </p>
 
 ## Features
