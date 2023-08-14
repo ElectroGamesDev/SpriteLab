@@ -51,6 +51,7 @@
 ## Contributing
 
 Contributions are welcome! If you have any suggestions, bug reports, or feature requests, feel free to open an issue or submit a pull request.
+https://img.shields.io/github/contributors/ElectroGamesDev/SpriteLab
 
 ## License
 
