@@ -166,6 +166,9 @@
     <ClCompile Include="imgui\imgui_impl_sdlrenderer.cpp" />
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Layer.cpp" />
+    <ClCompile Include="ProjectFileManager.cpp" />
+    <ClCompile Include="Utilities.cpp" />
     <ClCompile Include="SpriteLab.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -177,6 +180,11 @@
     <ClInclude Include="imgui\imstb_rectpack.h" />
     <ClInclude Include="imgui\imstb_textedit.h" />
     <ClInclude Include="imgui\imstb_truetype.h" />
+    <ClInclude Include="Layer.h" />
+    <ClInclude Include="Pixel.h" />
+    <ClInclude Include="Project.h" />
+    <ClInclude Include="ProjectFileManager.h" />
+    <ClInclude Include="Utilities.h" />
     <ClInclude Include="SpriteLab.h" />
   </ItemGroup>
   <ItemGroup>
