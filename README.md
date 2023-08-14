@@ -30,11 +30,11 @@
 
 ## Todo
 
-- [x] Export to Variety of File Formats
-- [x] Ability to Save and Load Projects
-- [x] Multiple Projects Opened At Once
-- [x] Layers
-- [x] Important Editing Tools like Brush, Eraser, Fill, Color Picker, etc
+- [X] Export to Variety of File Formats
+- [X] Ability to Save and Load Projects
+- [X] Multiple Projects Opened At Once
+- [X] Layers
+- [X] Important Editing Tools like Brush, Eraser, Fill, Color Picker, etc
 - [ ] Support To Import Projects From Other Sprite Editors
 - [ ] Fix Window Scaling
 - [ ] Optimize Exports
