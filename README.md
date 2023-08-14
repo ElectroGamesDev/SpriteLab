@@ -51,9 +51,9 @@
 ## Contributing
 
 Contributions are welcome! If you have any suggestions, bug reports, or feature requests, feel free to open an issue or submit a pull request.
-</a>
-  <a style="text-decoration:none">
-  <img src="https://img.shields.io/github/contributors/ElectroGamesDev/SpriteLab" alt="Contributors" />
+
+<a href="https://github.com/ElectroGamesDev/SpriteLab/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ElectroGamesDev/SpriteLab" />
 </a>
 
 ## License
