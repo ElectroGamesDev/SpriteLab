@@ -1,285 +1,633 @@
-#include "SpriteLab.h"
-#include <filesystem>
-#include <unordered_map>
+#include "ProjectFileManager.h"
+#include <algorithm>
+#include "json.hpp"
+#include <fstream>
 
-using namespace std;
-
-// TODO
-// ZOOM BAR AT BOTTOM RIGHT LIKE MS WORD. Make the minimum and maximum depend on the size of it.
-// Make all sizes work rather than just 100x100 and if size is bigger than canvas size, then zoom out also zoom in if small; scale to size where it fits canvas.
-// I don't think SetBaseCanvasZoom will work if the scale is bigger than the canvas window size, it might set the zoom to 0.
-// Switch structs to classes
+using json = nlohmann::json;
 
 namespace SpriteLab
 {
-    SDL_Window* window = nullptr;
-    SDL_Renderer* renderer = nullptr;
-    unordered_map<string, SDL_Texture*> textures;
-    bool bestZoomSet = false;
+    UserSettings userSettings;
 
-    struct ProjectSettings
-    {
-        ImVec2 size;
-        float zoom = 1;
-    }; ProjectSettings projectSettings;
-
-    struct Brush
-    {
-        ImU32 colour = IM_COL32(255,255,255,255);
-        int size = 1;
-    }; Brush brush;
-
-    struct PairHash {
-        template <class T1, class T2>
-        std::size_t operator () (const std::pair<T1, T2>& p) const {
-            auto h1 = std::hash<T1>{}(p.first);
-            auto h2 = std::hash<T2>{}(p.second);
-            return h1 ^ h2;
+    inline std::string encode(std::string const& data) {
+        int counter = 0;
+        uint32_t bit_stream = 0;
+        const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789+/";
+        std::string encoded;
+        int offset = 0;
+        for (unsigned char c : data) {
+            auto num_val = static_cast<unsigned int>(c);
+            offset = 16 - counter % 3 * 8;
+            bit_stream += num_val << offset;
+            if (offset == 16) {
+                encoded += base64_chars.at(bit_stream >> 18 & 0x3f);
+            }
+            if (offset == 8) {
+                encoded += base64_chars.at(bit_stream >> 12 & 0x3f);
+            }
+            if (offset == 0 && counter != 3) {
+                encoded += base64_chars.at(bit_stream >> 6 & 0x3f);
+                encoded += base64_chars.at(bit_stream & 0x3f);
+                bit_stream = 0;
+            }
+            counter++;
         }
-    };
-
-    struct Pixel
-    {
-        ImVec2 position;
-        ImU32 colour = IM_COL32(255, 255, 255, 255);
-    }; unordered_map<pair<int, int>, Pixel, PairHash> pixels;
-
-    enum Tools
-    {
-        PaintBrush
-    }; Tools selectedTool = PaintBrush;
-
-    float SpriteLab::GetBestCanvasZoom()
-    {
-        int x = floor(ImGui::GetWindowSize().x / projectSettings.size.x);
-        int y = floor(ImGui::GetWindowSize().y / projectSettings.size.y);
-        return (x < y) ? x : y;
+        if (offset == 16) {
+            encoded += base64_chars.at(bit_stream >> 12 & 0x3f);
+            encoded += "==";
+        }
+        if (offset == 8) {
+            encoded += base64_chars.at(bit_stream >> 6 & 0x3f);
+            encoded += '=';
+        }
+        return encoded;
     }
 
-    void SpriteLab::RenderMenuBar()
-    {
-        ImGui::SetNextWindowPos(ImVec2(0, 0));
-        ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-        ImGui::SetNextWindowBgAlpha(0.0f);
-        ImGui::Begin("MenuBar", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoBringToFrontOnFocus);
-
-        if (ImGui::BeginMenuBar()) {
-            if (ImGui::BeginMenu("File")) {
-                if (ImGui::MenuItem("Open Project", "Ctrl+O")) {}
-                if (ImGui::MenuItem("Save Project", "Ctrl+S")) {}
-                if (ImGui::MenuItem("Build Project", "")) {}
-                ImGui::EndMenu();
-            }
-            if (ImGui::BeginMenu("Edit")) {
-                if (ImGui::MenuItem("Project Settings", "")) {}
-                ImGui::EndMenu();
-            }
-            if (ImGui::BeginMenu("Help")) {
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenuBar();
-        }
-
-        ImGui::End();
-    }
-
-    void SpriteLab::RenderBackground()
-    {
-        // Canvas background
-        ImTextureID bgTextureId = (ImTextureID)textures["CanvasBackground"];
-        ImVec2 windowPos = ImGui::GetWindowPos();
-        ImVec2 windowSize = ImGui::GetWindowSize();
-        ImGuiStyle& style = ImGui::GetStyle();
-        ImVec2 prevPadding = style.WindowPadding;
-        style.WindowPadding = ImVec2(0, 0);
-        ImGui::SetCursorPos(ImVec2(0, 0));
-        ImGui::Image((ImTextureID)bgTextureId, ImVec2(windowPos.x + windowSize.x, windowPos.y + windowSize.y), ImVec2(0, 0), ImVec2(1, 1), ImColor(255, 255, 255, 255));
-
-        style.WindowPadding = prevPadding;
-    }
-
-    void SpriteLab::RenderCanvas()
-    {
-        int width, height;
-        SDL_GetWindowSize(window, &width, &height);
-        ImGui::SetNextWindowPos(ImVec2(50, 50));
-        ImGui::SetNextWindowSize(ImVec2(width - 100, height - 100));
-        ImGui::SetNextWindowBgAlpha(0.0f);
-        ImGui::Begin("Canvas", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
-        if (!bestZoomSet)
-        {
-            projectSettings.zoom = GetBestCanvasZoom();
-            bestZoomSet = true;
-        }
-
-        RenderBackground();
-
-        ImVec2 size = ImVec2(projectSettings.size.x * projectSettings.zoom, projectSettings.size.y * projectSettings.zoom);
-        ImGui::SetCursorPos(ImVec2(ImGui::GetWindowSize().x / 2 - (projectSettings.size.x * projectSettings.zoom) / 2, ImGui::GetWindowSize().y / 2 - (projectSettings.size.y * projectSettings.zoom) / 2));
-        ImGui::BeginChild("RealCanvas", size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
-
-        ImGui::Image((ImTextureID)textures["TransparentBackground"], size, ImVec2(0, 0), ImVec2(1, 1), ImColor(255, 255, 255, 255));
-
-        if (selectedTool == SpriteLab::PaintBrush)
-        {
-            ImVec2 mousePos = ImGui::GetMousePos();
-            ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-
-            int cellSize = projectSettings.zoom;
-            int gridX = static_cast<int>((mousePos.x - canvasPos.x) / cellSize);
-            int gridY = static_cast<int>((mousePos.y - canvasPos.y) / cellSize);
-
-            ImVec2 pixelMin(canvasPos.x + gridX * cellSize, canvasPos.y + gridY * cellSize - cellSize - 5);
-            ImVec2 pixelMax(canvasPos.x + (gridX + 1) * cellSize, canvasPos.y + (gridY + 1) * cellSize - cellSize - 5);
-
-            ImGui::GetWindowDrawList()->AddRectFilled(pixelMin, pixelMax, IM_COL32(255, 0, 0, 255));
-
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsMouseHoveringRect(ImGui::GetWindowPos(), ImVec2(ImGui::GetWindowPos().x + size.x, ImGui::GetWindowPos().y + size.y)))
-            {
-                for (int y = 0; y < cellSize; y++)
-                {
-                    for (int x = 0; x < cellSize; x++)
-                    {
-                        ImVec2 pixelPos(canvasPos.x + gridX * cellSize + x, canvasPos.y + gridY * cellSize + y - cellSize - 5);
-                        pixels[make_pair(pixelPos.x, pixelPos.y)] = (Pixel{ pixelPos, IM_COL32(255, 0, 0, 255) });
-                    }
+    inline std::string decode(std::string const& data) {
+        int counter = 0;
+        uint32_t bit_stream = 0;
+        std::string decoded;
+        int offset = 0;
+        const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789+/";
+        for (unsigned char c : data) {
+            auto num_val = base64_chars.find(c);
+            if (num_val != std::string::npos) {
+                offset = 18 - counter % 4 * 6;
+                bit_stream += num_val << offset;
+                if (offset == 12) {
+                    decoded += static_cast<char>(bit_stream >> 16 & 0xff);
+                }
+                if (offset == 6) {
+                    decoded += static_cast<char>(bit_stream >> 8 & 0xff);
+                }
+                if (offset == 0 && counter != 4) {
+                    decoded += static_cast<char>(bit_stream & 0xff);
+                    bit_stream = 0;
                 }
             }
+            else if (c != '=') {
+                return std::string();
+            }
+            counter++;
         }
+        return decoded;
+    }
 
-        for (const auto& pixel : pixels)
+    void SaveProject(Project* project, std::filesystem::path path)
+    {
+        userSettings.recentProjects.erase(std::remove(userSettings.recentProjects.begin(), userSettings.recentProjects.end(), path.string()), userSettings.recentProjects.end());
+        userSettings.recentProjects.insert(userSettings.recentProjects.begin(), path.string());
+        SaveSettings();
+
+        json projectJson;
+        json serializedLayers;
+        for (const Layer& layer : project->layers)
         {
-            ImGui::GetWindowDrawList()->AddRectFilled(pixel.second.position, ImVec2(pixel.second.position.x+1, pixel.second.position.y+1), IM_COL32(255, 0, 0, 255));
+            json serializedLayer;
+            serializedLayer["Pixels"] = {};
+
+            for (const auto& pixelEntry : layer.pixels)
+            {
+                const std::pair<int, int>& coords = pixelEntry.first;
+                const Pixel& pixel = pixelEntry.second;
+
+                json serializedPixel =
+                {
+                    {"rect", {pixel.rect.x, pixel.rect.y, pixel.rect.w, pixel.rect.h}},
+                    {"relativePos", {pixel.relativePos.x, pixel.relativePos.y}},
+                    {"colour", {pixel.colour.r, pixel.colour.g, pixel.colour.b, pixel.colour.a}},
+                    {"exists", pixel.exists}
+                };
+
+                serializedLayer["Pixels"][std::to_string(coords.first) + "-" + std::to_string(coords.second)] = serializedPixel;
+            }
+            serializedLayer["Visible"] = layer.visible;
+            serializedLayers.push_back(serializedLayer);
         }
 
-        ImGui::EndChild();
-
-        ImGui::End();
-    }
-
-    void SpriteLab::Render()
-    {
-        ImGui_ImplSDL2_NewFrame(window);
-        ImGui_ImplSDLRenderer_NewFrame();
-        ImGui::NewFrame();
-
-        RenderMenuBar();
-        RenderCanvas();
-
-        ImGui::Render();
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-        ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
-        SDL_RenderPresent(renderer);
-    }
-
-    void SpriteLab::InitImages()
-    {
-        int imgFlags = IMG_INIT_PNG | IMG_INIT_JPG | IMG_INIT_WEBP | IMG_INIT_AVIF | IMG_INIT_JXL | IMG_INIT_TIF;
-        if (!(IMG_Init(imgFlags) & imgFlags)) {}
-
-        std::filesystem::path imagesPath = std::filesystem::path(__FILE__).parent_path() / "Images";
-
-        for (const filesystem::path& entry : filesystem::directory_iterator(std::filesystem::path(__FILE__).parent_path() / "Images"))
+        projectJson["Settings"] =
         {
-            if (!filesystem::is_regular_file(entry)) continue;
-            SDL_Surface* surface = IMG_Load(entry.string().c_str());
-            textures[entry.stem().string()] = SDL_CreateTextureFromSurface(renderer, surface);
-            SDL_FreeSurface(surface);
-            cout << "Image Loaded - " + entry.stem().string() << endl;
+            {"Size", {project->projectSettings.size.x, project->projectSettings.size.y}},
+            {"Zoom", project->projectSettings.zoom},
+        };
+
+        projectJson["Brush"] =
+        {
+            {"Colour", {project->brush.colour.r, project->brush.colour.g, project->brush.colour.b, project->brush.colour.a}},
+            {"Size", project->brush.size},
+        };
+
+        int selectedLayer = 0;
+        for (const Layer& layer : project->layers)
+        {
+            if (project->selectedLayer == &layer) break;
+            else selectedLayer++;
         }
 
+        json serializedRecentColours = json::array();
+        for (const auto& colour : project->recentColours) {
+            json serializedColor = {
+                {"r", colour.r},
+                {"g", colour.g},
+                {"b", colour.b},
+                {"a", colour.a}
+            };
+            serializedRecentColours.push_back(serializedColor);
+        }
+        projectJson["RecentColours"] = serializedRecentColours;
 
-        // Canvas Grey Background
-        SDL_Surface* surface = SDL_CreateRGBSurface(0, 1920, 1080, 32, 0, 0, 0, 0);
-        Uint32 blueColor = SDL_MapRGB(surface->format, 40, 40, 40);
-        SDL_FillRect(surface, NULL, blueColor);
-        textures["CanvasBackground"] = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_FreeSurface(surface);
+        projectJson["Other"] =
+        {
+            {"Name", project->name},
+            {"SelectedLayer", selectedLayer},
+            {"LastSaveLocation", project->lastSaveLocation},
+            {"LastExportLocation", project->lastExportLocation},
+            {"LastSaveName", project->lastSaveName},
+            {"LastExportName", project->lastExportLocation}
+        };
+
+        projectJson["Layers"] = serializedLayers;
+
+        std::ofstream outFile(path);
+        if (outFile.is_open())
+        {
+            outFile << encode(projectJson.dump(4));
+            outFile.close();
+            //std::cout << "Project saved to: " << path.string() << std::endl;
+        }
+        else std::cerr << "Failed to save project to: " << path.string() << std::endl;
+        project->saved = true;
     }
 
-    void SpriteLab::InitSDL()
+    Project LoadProject(std::filesystem::path path) // Todo: If project is already open, set project as selected
     {
-        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
-            printf("SDL_Init Error: %s\n", SDL_GetError());
-            exit(1);
+        Project project;
+
+        std::ifstream inFile(path, std::ios::binary);
+        if (!inFile.is_open())
+        {
+            std::cerr << "Failed to open project: " << path.string() << std::endl;
+            return project;
         }
 
-        SDL_DisplayMode dm;
-        SDL_GetDesktopDisplayMode(0, &dm);
-        int width = dm.w;
-        int height = dm.h - 50;
+        // --------------- TODO: Instead of doing all of that below to get file contents, do it like how I did it in GetSetting() ---------------
 
-        window = SDL_CreateWindow("SpriteLab v0.1",
-            SDL_WINDOWPOS_CENTERED,
-            SDL_WINDOWPOS_CENTERED,
-            width, height,
-            SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-        //SDL_SetWindowResizable(window, SDL_FALSE);
-        SDL_SetWindowMinimumSize(window, 960, 540);
+        inFile.seekg(0, std::ios::end);
+        std::streampos fileSize = inFile.tellg();
+        inFile.seekg(0, std::ios::beg);
 
-        if (!window) {
-            printf("SDL_CreateWindow Error: %s\n", SDL_GetError());
-            SDL_Quit();
-            exit(1);
+        std::string projectString;
+        projectString.resize(fileSize);
+        inFile.read(&projectString[0], fileSize);
+
+        projectString = decode(projectString);
+
+        nlohmann::json projectJson = nlohmann::json::parse(projectString);
+
+        project.projectSettings.size.x = projectJson["Settings"]["Size"][0];
+        project.projectSettings.size.y = projectJson["Settings"]["Size"][1];
+        project.projectSettings.zoom = projectJson["Settings"]["Zoom"];
+
+        project.brush.colour.r = projectJson["Brush"]["Colour"][0];
+        project.brush.colour.g = projectJson["Brush"]["Colour"][1];
+        project.brush.colour.b = projectJson["Brush"]["Colour"][2];
+        project.brush.colour.a = projectJson["Brush"]["Colour"][3];
+        project.brush.size = projectJson["Brush"]["Size"];
+
+        for (const auto& serializedColor : projectJson["RecentColours"])
+        {
+            SDL_Color color;
+            color.r = serializedColor["r"];
+            color.g = serializedColor["g"];
+            color.b = serializedColor["b"];
+            color.a = serializedColor["a"];
+
+            project.recentColours.push_back(color);
         }
 
-        renderer = SDL_CreateRenderer(window, -1,
-            SDL_RENDERER_ACCELERATED |
-            SDL_RENDERER_PRESENTVSYNC);
-        if (!renderer) {
-            printf("SDL_CreateRenderer Error: %s\n", SDL_GetError());
-            SDL_DestroyWindow(window);
-            SDL_Quit();
-            exit(1);
+        const nlohmann::json& serializedLayers = projectJson["Layers"];
+        for (const auto& serializedLayer : serializedLayers)
+        {
+            Layer layer;
+
+            for (auto it = serializedLayer["Pixels"].begin(); it != serializedLayer["Pixels"].end(); ++it)
+            {
+                const std::string& key = it.key();
+                const nlohmann::json& serializedPixel = it.value();
+
+                Pixel pixel;
+                pixel.rect.x = serializedPixel["rect"][0];
+                pixel.rect.y = serializedPixel["rect"][1];
+                pixel.rect.w = serializedPixel["rect"][2];
+                pixel.rect.h = serializedPixel["rect"][3];
+                pixel.relativePos.x = serializedPixel["relativePos"][0];
+                pixel.relativePos.y = serializedPixel["relativePos"][1];
+                pixel.colour.r = serializedPixel["colour"][0];
+                pixel.colour.g = serializedPixel["colour"][1];
+                pixel.colour.b = serializedPixel["colour"][2];
+                pixel.colour.a = serializedPixel["colour"][3];
+                pixel.exists = serializedPixel["exists"];
+
+                int x, y;
+                sscanf_s(key.c_str(), "%d-%d", &x, &y);
+                layer.pixels[{x, y}] = pixel;
+            }
+            layer.visible = serializedLayer["Visible"];
+
+            project.layers.push_back(layer);
         }
 
-        ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO();
-        (void)io;
-        io.ConfigWindowsMoveFromTitleBarOnly = true;
-        //InitFonts();
-        ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
-        ImGui_ImplSDLRenderer_Init(renderer);
+        project.selectedLayer = &project.layers[projectJson["Other"]["SelectedLayer"]];
 
-        ImGui::StyleColorsDark();
+        project.name = projectJson["Other"]["Name"];
+        project.lastSaveLocation = projectJson["Other"]["LastSaveLocation"];
+        project.lastExportLocation = projectJson["Other"]["LastExportLocation"];
+        project.lastSaveName = projectJson["Other"]["LastSaveName"];
+        project.lastExportName = projectJson["Other"]["LastExportName"];
+
+        inFile.close();
+
+        userSettings.recentProjects.erase(std::remove(userSettings.recentProjects.begin(), userSettings.recentProjects.end(), path.string()), userSettings.recentProjects.end());
+        userSettings.recentProjects.insert(userSettings.recentProjects.begin(), path.string());
+        SaveSettings();
+
+        return project;
     }
 
-    void SpriteLab::Cleanup()
+    void ExportProject(SDL_Renderer* renderer, Project* project, std::filesystem::path path, SDL_Point size)
     {
-        ImGui_ImplSDLRenderer_Shutdown();
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
+        if ("path" == "null") return;
 
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-    }
+        int channels = 4;
+        if (path.extension().string() == ".jpg" || path.extension().string() == ".jpeg") channels = 3;
 
-    void SpriteLab::ProcessEvents()
-    {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT) {
-                exit(0);
+        uint8_t* pixelData = new uint8_t[size.x * size.y * channels];
+        int index = 0;
+        for (int y = 0; y < size.y; y++)
+        {
+            for (int x = 0; x < size.x; x++)
+            {
+                int r = -1, g = -1, b = -1, a = -1;
+                for (int i = project->layers.size() - 1; i >= 0; i--)
+                {
+                    if (!project->layers[i].visible) continue;
+                    auto pixel = project->layers[i].pixels.find(std::make_pair(x, y));
+
+                    if (pixel != project->layers[i].pixels.end() && pixel->second.exists)
+                    {
+                        r = pixel->second.colour.r;
+                        g = pixel->second.colour.g;
+                        b = pixel->second.colour.b;
+                        if (channels == 4) a = pixel->second.colour.a;
+                    }
+                }
+                if (r == -1)
+                {
+                    if (channels == 4) pixelData[index++] = 0;
+                    else pixelData[index++] = 255;
+                }
+                else pixelData[index++] = r;
+                if (g == -1)
+                {
+                    if (channels == 4) pixelData[index++] = 0;
+                    else pixelData[index++] = 255;
+                }
+                else pixelData[index++] = g;
+                if (b == -1)
+                {
+                    if (channels == 4) pixelData[index++] = 0;
+                    else pixelData[index++] = 255;
+                }
+                else pixelData[index++] = b;
+                if (a == -1)
+                {
+                    if (channels == 4) pixelData[index++] = 0;
+                    else pixelData[index++] = 255;
+                }
+                else if (channels == 4) pixelData[index++] = a;
+                else pixelData[index++] = 255;
             }
         }
+
+        /*
+           You can configure it with these global variables:
+int stbi_write_tga_with_rle;             // defaults to true; set to 0 to disable RLE
+int stbi_write_png_compression_level;    // defaults to 8; set to higher for more compression
+int stbi_write_force_png_filter;         // defaults to -1; set to 0..5 to force a filter mode
+                  */
+
+        int success = 0;
+        if (path.extension().string() == ".png")
+            success = stbi_write_png(path.string().c_str(), size.x, size.y, channels, pixelData, size.x * channels);
+        else if (path.extension().string() == ".jpg" || path.extension().string() == ".jpeg")
+            success = stbi_write_jpg(path.string().c_str(), size.x, size.y, channels, pixelData, 100);
+        else if (path.extension().string() == ".bmp")
+            success = stbi_write_bmp(path.string().c_str(), size.x, size.y, channels, pixelData);
+        else if (path.extension().string() == ".tga")
+            success = stbi_write_tga(path.string().c_str(), size.x, size.y, channels, pixelData);
+        else std::cerr << "Incorrect image format selected: " << path.extension().string() << std::endl;
+
+        if (success)
+        {
+            std::cout << "Exported image: " << path.filename().string() << std::endl;
+        }
+        else
+        {
+            std::cerr << "Image " << path.filename().string() << " failed to export" << std::endl;
+        }
     }
-}
 
-int main(int argc, char* argv[])
-{
-    SpriteLab::InitSDL();
-    SpriteLab::InitImages();
+    std::string SaveProjectDialog(SDL_Window* window, SDL_Renderer* renderer, FileType fileType, std::string fileName)
+    {
+        SDL_SysWMinfo info;
+        SDL_VERSION(&info.version);
+        if (!SDL_GetWindowWMInfo(window, &info)) return "null";
+        HWND hwnd = info.info.win.window;
+        HINSTANCE hInstance = GetModuleHandle(NULL);
+        std::string path;
 
-    SpriteLab::projectSettings.size = ImVec2(10,10);
+        HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        if (SUCCEEDED(hr))
+        {
+            IFileSaveDialog* pFileSave;
 
-    while (true) {
-        SpriteLab::ProcessEvents();
-        SpriteLab::Render();
+            hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_ALL,
+                IID_IFileSaveDialog, reinterpret_cast<void**>(&pFileSave));
+
+            if (SUCCEEDED(hr))
+            {
+                std::vector<COMDLG_FILTERSPEC> fileTypes;
+                if (fileType == ExportType)
+                {
+                    fileTypes = {
+                        { L"PNG Files", L"*.png" },
+                        { L"JPEG Files", L"*.jpg;*.jpeg" },
+                        { L"BMP Files", L"*.bmp" },
+                        { L"TGA Files", L"*.tga" }
+                    };
+                    pFileSave->SetDefaultExtension(L"png");
+                }
+                else
+                {
+                    fileTypes = {
+                        { L"SpriteLab File", L"*.spl" }
+                    };
+                    pFileSave->SetDefaultExtension(L"spl");
+                }
+
+                std::wstring wFileName = std::wstring(fileName.begin(), fileName.end());
+
+                pFileSave->SetFileTypes(static_cast<UINT>(fileTypes.size()), fileTypes.data());
+                pFileSave->SetFileName(wFileName.c_str());
+
+                hr = pFileSave->Show(NULL);
+
+                if (SUCCEEDED(hr))
+                {
+                    IShellItem* pItem;
+                    hr = pFileSave->GetResult(&pItem);
+                    if (SUCCEEDED(hr))
+                    {
+                        PWSTR pszFilePath;
+                        hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                        if (SUCCEEDED(hr))
+                        {
+                            int len = WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, NULL, 0, NULL, NULL);
+                            std::string str(len, '\0');
+                            WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, &str[0], len, NULL, NULL);
+                            path = str;
+
+                            CoTaskMemFree(pszFilePath);
+                        }
+                        else path = "null";
+                        pItem->Release();
+                    }
+                    else path = "null";
+                }
+                else path = "null";
+                pFileSave->Release();
+            }
+            CoUninitialize();
+        }
+
+        path.erase(std::remove_if(path.begin(), path.end(), [](char c) {
+            return !std::isprint(static_cast<unsigned char>(c));
+            }), path.end());
+        return path;
     }
 
-    SpriteLab::Cleanup();
-    return 0;
+    std::string LoadProjectDialog(SDL_Window* window, SDL_Renderer* renderer)
+    {
+        SDL_SysWMinfo info;
+        SDL_VERSION(&info.version);
+        if (!SDL_GetWindowWMInfo(window, &info)) return "null";
+        HWND hwnd = info.info.win.window;
+        HINSTANCE hInstance = GetModuleHandle(NULL);
+        std::string path;
+
+        HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        if (SUCCEEDED(hr))
+        {
+            IFileOpenDialog* pFileOpen;
+
+            hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+                IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+
+            if (SUCCEEDED(hr))
+            {
+                COMDLG_FILTERSPEC fileTypes[] = {
+                    { L"SpriteLab File", L"*.spl" }
+                };
+
+                pFileOpen->SetFileTypes(static_cast<UINT>(std::size(fileTypes)), fileTypes);
+                pFileOpen->SetDefaultExtension(L"spl");
+
+                hr = pFileOpen->Show(NULL);
+
+                if (SUCCEEDED(hr))
+                {
+                    IShellItem* pItem;
+                    hr = pFileOpen->GetResult(&pItem);
+                    if (SUCCEEDED(hr))
+                    {
+                        PWSTR pszFilePath;
+                        hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                        if (SUCCEEDED(hr))
+                        {
+                            int len = WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, NULL, 0, NULL, NULL);
+                            std::string str(len, '\0');
+                            WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, &str[0], len, NULL, NULL);
+                            path = str;
+
+                            CoTaskMemFree(pszFilePath);
+                        }
+                        else path = "null";
+                        pItem->Release();
+                    }
+                    else path = "null";
+                }
+                else path = "null";
+
+                pFileOpen->Release();
+            }
+            CoUninitialize();
+        }
+
+        // Rest of your code
+        return path;
+    }
+
+    void SpriteLab::SetSetting(std::string setting, std::string value, std::string value2)
+    {
+        json settingsJson;
+        std::filesystem::path settingsPath = (std::filesystem::path(__FILE__).parent_path() / ".settings");
+        if (std::filesystem::exists(settingsPath))
+        {
+            std::ifstream settingsFile(settingsPath);
+            if (!settingsFile.is_open()) {
+                std::cerr << "Failed to open settings file." << std::endl;
+                return;
+            }
+
+            try
+            {
+                std::string settingsString((std::istreambuf_iterator<char>(settingsFile)), std::istreambuf_iterator<char>());
+                settingsJson = json::parse(settingsString);
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "Error parsing settings JSON: " << e.what() << std::endl;
+                return;
+            }
+        }
+
+        if (value2 == "null") settingsJson[setting] = value;
+        else settingsJson[setting] = {value, value2};
+
+        std::ofstream outFile(settingsPath);
+        if (outFile.is_open())
+        {
+            outFile << settingsJson.dump(4);
+            outFile.close();
+        }
+        else std::cerr << "Failed to save settings: " << std::endl;
+    }
+
+    std::string SpriteLab::GetSetting(std::string setting)
+    {
+        std::ifstream settingsFile(std::filesystem::path(__FILE__).parent_path() / ".settings");
+        if (!settingsFile.is_open()) {
+            std::cerr << "Failed to open settings file, may not exist." << std::endl;
+            return "null";
+        }
+
+        try
+        {
+            std::string settingsString((std::istreambuf_iterator<char>(settingsFile)), std::istreambuf_iterator<char>());
+            json settingsJson = json::parse(settingsString);
+            return settingsJson[setting];
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Error parsing settings JSON: " << e.what() << std::endl;
+            return "null";
+        }
+    }
+
+    void ProjectSave(SDL_Window* window, SDL_Renderer* renderer, Project* project)
+    {
+        std::string path;
+        if (project->lastSaveLocation == "") return ProjectSaveAs(window, renderer, project);
+        else path = project->lastSaveLocation + "/" + project->name + ".spl";
+        if (path != "null" && path != "")SaveProject(project, path);
+    }
+
+    void ProjectSaveAs(SDL_Window* window, SDL_Renderer* renderer, Project* project)
+    {
+        std::string path = SaveProjectDialog(window, renderer, SaveType, project->name);
+        if (path != "null")
+        {
+            std::filesystem::path fspath = path;
+            project->lastSaveLocation = fspath.parent_path().string();
+            project->lastSaveName = fspath.filename().string();
+            project->name = fspath.stem().string();
+            SaveProject(project, path);
+        }
+    }
+
+    void ProjectExport(SDL_Window* window, SDL_Renderer* renderer, Project* project)
+    {
+        std::string path;
+        if (project->lastExportLocation == "") return ProjectExportAs(window, renderer, project);
+        else path = project->lastExportLocation + "/" + project->lastExportName;
+        if (path != "null" && path != "") ExportProject(renderer, project, path, { static_cast<int>(project->projectSettings.size.x), static_cast<int>(project->projectSettings.size.y) });
+
+    }
+
+    void ProjectExportAs(SDL_Window* window, SDL_Renderer* renderer, Project* project)
+    {
+        std::string path = SaveProjectDialog(window, renderer, ExportType, project->name);
+        if (path != "null")
+        {
+            std::filesystem::path fspath = path;
+            project->lastExportLocation = fspath.parent_path().string();
+            project->lastExportName = fspath.filename().string();
+            ExportProject(renderer, project, path, { static_cast<int>(project->projectSettings.size.x), static_cast<int>(project->projectSettings.size.y) });
+        }
+    }
+
+    void LoadSettings()
+    {
+        json settingsJson;
+        std::ifstream settingsFile(std::filesystem::path(__FILE__).parent_path() / ".settings");
+        if (!settingsFile.is_open()) return;
+
+        try
+        {
+            std::string settingsString((std::istreambuf_iterator<char>(settingsFile)), std::istreambuf_iterator<char>());
+            settingsString = decode(settingsString);
+            json settingsJson = json::parse(settingsString);
+
+            userSettings.preferedCanvasSize.x = settingsJson["PreferedWidth"];
+            userSettings.preferedCanvasSize.y = settingsJson["PreferedHeight"];
+
+            for (const auto& recentProject : settingsJson["RecentProjects"])
+            {
+                userSettings.recentProjects.push_back(recentProject);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Error parsing settings JSON: " << e.what() << std::endl;
+            return;
+        }
+    }
+
+    void SaveSettings()
+    {
+        json settingsJson;
+        std::filesystem::path path = std::filesystem::path(__FILE__).parent_path() / ".settings";
+
+        settingsJson["PreferedWidth"] = userSettings.preferedCanvasSize.x;
+        settingsJson["PreferedHeight"] = userSettings.preferedCanvasSize.y;
+
+        for (const std::string project : userSettings.recentProjects)
+        {
+            settingsJson["RecentProjects"].push_back(project);
+        }
+
+        std::ofstream outFile(path);
+        if (outFile.is_open())
+        {
+            outFile << encode(settingsJson.dump(4));
+            outFile.close();
+        }
+        else std::cerr << "Failed to save settings to: " << path.string() << std::endl;
+    }
 }
