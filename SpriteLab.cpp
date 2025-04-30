@@ -4,8 +4,81 @@
 #define __STDC_LIB_EXT1__
 #define STB_IMAGE_WRITE_IMPLEMENTATION    
 #include "ProjectFileManager.h"
+#include "FontManager.h"
+#include <queue>
 
 using namespace std;
+
+// TODO
+// Make sure if brush size is greater than one and if a pixel drawn is off screen, dont draw it
+// Properly maximize window
+// Add support for resizing
+// Redo Project Create menu on Projects Menu Screen. Maybe put the Project Start menu in the editor, but block/hide things like the toolbar, and in the canvas area make it
+//  so thats where the buttons to open projec, create project, and recent projects are.
+// ZOOM BAR AT BOTTOM RIGHT LIKE MS WORD. Make the minimum and maximum depend on the size of it.
+// Make all sizes work rather than just 100x100 and if size is bigger than canvas size, then zoom out also zoom in if small; scale to size where it fits canvas.
+// I don't think SetBaseCanvasZoom will work if the scale is bigger than the canvas window size, it might set the zoom to 0.
+// Switch structs to classes
+// Change everything from ImGui to SDL other than gui such as ImVec2 to SDL_Point
+// If pixel is too dark, change outline of tools like eraser to white
+// Add shortcut keys to tools
+// When exporting to JPG with a transparent image, pop up saying that JPG doesn't support transparent images. And recommend switching to PNG, BMP, or TGA 
+//  and say the transparent pixels will be replaced with white. and say with 3 buttons, "Continue", "Cancel", "Export to PNG"
+// Option to reduce quality of exported images like JPG (stb_image has parameter for it)
+// Add CTRL Z, CTRL A, CTRL C, SHIFT CTRL Z, CTRL D, CTRL V, CTRL S, SHIFT CTRL S, etc
+// FOR LAYERS HAVE PIXEL VARIABLE FOR EACH ONE, THEN ANOTHER PIXEL VARIABLE FOR PIXELS THAT ARE VISIBBLE. DONT RENDER PIXELS THAT CANT BE SEEN.
+// Support for .spl drag and drop & double clicking
+// Up and down arrow key for selecting layer
+// Add alpha blending to exported image
+// Support importing files from other sprite editors like aseprite, photoshop, etc (make sure to add double click file and drag & drop too)
+// Make it so user can have multiple projects open at once.
+// Store if the file was already saved and if it was, then dont open dialog to save. Save this cross session in project settings
+// when closing, it will need to check all projects opened and say "Do you want to save xxxxx before closing"
+// In the installer program, make it so it sets .spl file application to SpriteLab. Maybe others like .ase but unchecked by default
+// Make a confirmation popup if user is trying to open project that is already open. Maybe just take them to the project.
+// When rendering pixel to canvas, see if I should use relativePos instead of rect
+// Remove lastSaveName and lastExportName, and make lastExportLocation and lastSaveLocation paths.
+// Make colour picker look nice like https://github.com/ocornut/imgui/issues/346
+// Change toolbar button colours to use ColorButton
+// When a project is created, save the width and height, so when creating new projects, the width and height will default to what they used previously
+// In .spl files, at the top, add SPL save version so incase if the user is trying to open a older spl file, it will try to convert if it cant, it will tell them which version
+//  the file is for
+// Instead of defining the SDL_WindowSize is a lot of the Render Functions, just define it in the Render() and then pass the values through parameters
+// Bucket tool crashes program if there are a lot of pixels like 100x100
+// If the save json is unable to parse, send error saying file got corrupted or was saved on a different version (although if we add version checks then not) rather than letting it crash
+// Remove selectedProject->lastSaveName
+// Make it so SetSetting takes a json instead of 2 strings so things like setting last width and height doesn't need to open and close the file twice & consider encoding data
+// Load .settings into ram, maybe remove GetSetting() & SetSetting() (unless I still want to Set settings to files realtime), and LoadSettings() and SaveSettings(); 
+// If there are too many tabs opened, some will go off screen.
+// Fix canvas from being off centered with correct numbers. I think its because it assumes the top and bottom borders are the same height
+// Multi-threading
+// When hovering over tool, popup information about it
+// With EyeDropper tool and hovering over canvas, popup colour w/ RGBA
+// Dragable layers & projects tab so the order of them can be changed
+// Add close project & add the functionality to Menu, Shortcut, and Tab X
+// When right click layer, option to delete, duplicate, copy, etc. Also if you click on a layer and do shortcut keys, it will copy, paste, duplicate, delete, etc. Make sure to have popups saying it cant delete the only layer and stuff
+// Add groups for layers
+// Export spritesheet
+// Potentially add layer names under tha layer preview in Layer Menu and maybe a button at the bottom of the layer menu to enable and disable layer names
+// Todo: Add pixel blending for same layer. Example: if a 50% black alpha is drawn on the pixel it will draw 50% black. If its drawn again, it will go to 100% black
+// Maybe instead of having to click "Select" in the colour picker, when the user clicks out of the colour picker, it will select that color
+// Todo: Fix the recent projects to remove projects with different caps. Currently it only deletes one with the exact same string (including caps)
+//  also, it seems like the path from recent and open menu are formatted differently or something which also gives duplicates it in recent project.
+// When clicking UI, make sure it doesn't detect a click on the canvas
+// Prefered Canvas saving seems to be saving or loading the Height as Width
+// Duplicate, delete, copy, etc layers
+// Doesnt have garbage collection. "When you allocate memory dynamically using new, you are responsible for freeing that memory when you're done with it using delete. Failing to do so can lead to memory leaks, where memory is allocated but not released, resulting in your program using more and more memory over time."
+
+// When a project is SaveAs & Opened, it will save it as a recent project. Create a OpenProject() ALSO LIMIT IT TO 10
+
+/*
+------ STB IMAGE SAYS THIS -----
+The PNG output is not optimal; it is 20-50% larger than the file
+   written by a decent optimizing implementation; though providing a custom
+   zlib compress function (see STBIW_ZLIB_COMPRESS) can mitigate that.
+   This library is designed for source code compactness and simplicity,
+   not optimal image file size or run-time performance.
+*/
 
 namespace SpriteLab
 {
@@ -104,7 +177,7 @@ namespace SpriteLab
                         }
                     }
                 }
-                if (ImGui::BeginMenu("Open Recent"))
+                if (ImGui::BeginMenu("Open Recent")) // Todo: Add name length limit and maybe don't load each recent project to reduce resource usage.
                 {
                     for (string projectPath : userSettings.recentProjects)
                     {
@@ -178,6 +251,16 @@ namespace SpriteLab
 
     void SpriteLab::RenderBackground()
     {
+        // Canvas background
+        //ImTextureID bgTextureId = (ImTextureID)textures["CanvasBackground"];
+        //ImVec2 windowPos = ImGui::GetWindowPos();
+        //ImVec2 windowSize = ImGui::GetWindowSize();
+        //ImGuiStyle& style = ImGui::GetStyle();
+        //ImVec2 prevPadding = style.WindowPadding;
+        //style.WindowPadding = ImVec2(0, 0);
+        //ImGui::SetCursorPos(ImVec2(0, 0));
+        //ImGui::Image((ImTextureID)bgTextureId, ImVec2(windowPos.x + windowSize.x, windowPos.y + windowSize.y), ImVec2(0, 0), ImVec2(1, 1), ImColor(255, 255, 255, 255));
+        //style.WindowPadding = prevPadding;
         int width, height;
         SDL_GetWindowSize(window, &width, &height);
         SDL_Rect dstrect = { 50, 90, width - 50, height - 140};
@@ -186,32 +269,103 @@ namespace SpriteLab
         SDL_RenderCopy(renderer, textures["CanvasBackground"], NULL, &dstrect);
     }
 
-    void BucketToolFill(Pixel& pixel, SDL_Color color, ImVec2 size, int mouseX, int mouseY)
-    {
-        //ImVec2 canvasPos = selectedProject->canvasMinPos;
-        if (pixel.relativePos.x < 0 || pixel.relativePos.x >(selectedProject->projectSettings.size.x - 1) || pixel.relativePos.y < 0 || pixel.relativePos.y >(selectedProject->projectSettings.size.y - 1)) return;
-        //if (pixel.rect.x < selectedProject->canvasMinPos.x || pixel.rect.y < selectedProject->canvasMinPos.y || pixel.rect.x > selectedProject->canvasMaxPos.x || pixel.rect.y > selectedProject->canvasMaxPos.y) return;
-        SDL_Color oldColor = pixel.colour;
-        pixel.colour = color;
-        if (!pixel.exists) selectedProject->selectedLayer->pixels[make_pair(pixel.relativePos.x, pixel.relativePos.y)] = Pixel{ pixel.rect, pixel.relativePos, selectedProject->brush.colour };
+    void BucketToolFill(Pixel& startPixel, SDL_Color fillColor, ImVec2 size, int mouseX, int mouseY) {
+        // Bounds check for the starting pixel
+        if (startPixel.relativePos.x < 0 ||
+            startPixel.relativePos.x >(selectedProject->projectSettings.size.x - 1) ||
+            startPixel.relativePos.y < 0 ||
+            startPixel.relativePos.y >(selectedProject->projectSettings.size.y - 1)) {
+            return;
+        }
 
-        for (int i = 0; i < 4; i++)
-        {
-            int xDifference = ((selectedProject->canvasMaxPos.x - selectedProject->canvasMinPos.x) / selectedProject->projectSettings.size.x);
-            int yDifference = (selectedProject->canvasMaxPos.y - selectedProject->canvasMinPos.y) / selectedProject->projectSettings.size.y;
-            int x = (i == 2) ? 1 : (i == 3) ? -1 : 0;
-            int y = (i == 0) ? 1 : (i == 1) ? -1 : 0;
+        // Get the color we're replacing
+        SDL_Color targetColor;
 
+        if (startPixel.exists) {
+            targetColor = startPixel.colour;
+        }
+        else {
+            targetColor = { 0, 0, 0, 0 }; // Assuming transparent color
+        }
 
-            pair pixelPair = make_pair(pixel.relativePos.x + x, pixel.relativePos.y + y);
-            if (selectedProject->selectedLayer->pixels.find(pixelPair) != selectedProject->selectedLayer->pixels.end())
-            {
-                if (CompareColor(oldColor, selectedProject->selectedLayer->pixels[pixelPair].colour)) BucketToolFill(selectedProject->selectedLayer->pixels[pixelPair], color, size, mouseX, mouseY);
+        // If target color is already the fill color, no need to fill
+        if (CompareColor(targetColor, fillColor)) {
+            return;
+        }
+
+        // Use a queue for breadth-first fill approach
+        std::queue<std::pair<int, int>> pixelsToFill;
+        pixelsToFill.push(make_pair(startPixel.relativePos.x, startPixel.relativePos.y));
+
+        // Calculate pixel size
+        int xDifference = ((selectedProject->canvasMaxPos.x - selectedProject->canvasMinPos.x) /
+            selectedProject->projectSettings.size.x);
+        int yDifference = ((selectedProject->canvasMaxPos.y - selectedProject->canvasMinPos.y) /
+            selectedProject->projectSettings.size.y);
+
+        // Directions: up, down, right, left
+        const int dx[4] = { 0, 0, 1, -1 };
+        const int dy[4] = { -1, 1, 0, 0 };
+
+        // Process pixels until queue is empty
+        while (!pixelsToFill.empty()) {
+            // Get the next pixel to process
+            auto currentPos = pixelsToFill.front();
+            pixelsToFill.pop();
+
+            int x = currentPos.first;
+            int y = currentPos.second;
+
+            // Skip if outside bounds
+            if (x < 0 || x >(selectedProject->projectSettings.size.x - 1) ||
+                y < 0 || y >(selectedProject->projectSettings.size.y - 1)) {
+                continue;
             }
-            else if (!pixel.exists)
-            {
-                Pixel newPixel = Pixel{ {pixel.rect.x + (x*xDifference), pixel.rect.y + (y * yDifference), pixel.rect.w, pixel.rect.h},{pixel.relativePos.x + x, pixel.relativePos.y + y}, {0,0,0,0}, false };
-                BucketToolFill(newPixel, color, size, mouseX, mouseY);
+
+            // Check if this pixel needs to be filled
+            bool needsFill = false;
+            auto pixelPair = make_pair(x, y);
+
+            if (selectedProject->selectedLayer->pixels.find(pixelPair) !=
+                selectedProject->selectedLayer->pixels.end()) {
+                // Existing pixel - check if it's the target color
+                if (CompareColor(targetColor, selectedProject->selectedLayer->pixels[pixelPair].colour)) {
+                    needsFill = true;
+                }
+            }
+            else {
+                // Non-existing pixel - should be filled if target is transparent
+                if (!startPixel.exists) {
+                    needsFill = true;
+                }
+            }
+
+            if (needsFill) {
+                // Fill this pixel
+                if (selectedProject->selectedLayer->pixels.find(pixelPair) !=
+                    selectedProject->selectedLayer->pixels.end()) {
+                    // Update existing pixel
+                    selectedProject->selectedLayer->pixels[pixelPair].colour = fillColor;
+                }
+                else {
+                    // Create new pixel
+                    Pixel newPixel = {
+                        {selectedProject->canvasMinPos.x + (x * xDifference),
+                         selectedProject->canvasMinPos.y + (y * yDifference),
+                         xDifference, yDifference},
+                        {x, y},
+                        fillColor,
+                        true
+                    };
+                    selectedProject->selectedLayer->pixels[pixelPair] = newPixel;
+                }
+
+                // Add neighboring pixels to the queue
+                for (int i = 0; i < 4; i++) {
+                    int newX = x + dx[i];
+                    int newY = y + dy[i];
+                    pixelsToFill.push(make_pair(newX, newY));
+                }
             }
         }
     }
@@ -372,8 +526,18 @@ namespace SpriteLab
             SetBrushColour(selectedProject, &selectedProject->brush, selectedProject->selectedLayer->pixels[make_pair(gridX, gridY)].colour);
     }
 
-    void LineToolFill(Pixel pixel, SDL_Point endPoint, SDL_Color color)
+    void LineToolFill(Pixel pixel, SDL_Point endPoint, SDL_Color color) // Todo: Fix it so its more accurate if the line isn't straight or 45 degree angle.
     { 
+        //I think I should rely on math rather than for every pixel, check which is closest to the end point and keep doing that to get line since it doesn't make the line straight.
+            //So what I think I will need to do is come up with a math formula that will take 2 SDL_Point's and then do calculations to see of all numbers in between to comeup with a straight line.
+        // I think this is trigonometry/Pythagorean theorem. SOH-CAH-TOA. Find the slope. Maybe use Opposite and Adjacent to find Hypotenuse. Then divide that by the pixels between or something. Each pixel it will add the value together.
+        // http://www.softwareandfinance.com/Visual_CPP/VCPP_Equation_of_a_line.html
+        // https://www.google.com/search?client=opera-gx&q=cpp+straight+line+from+2+points+math&sourceid=opera&ie=UTF-8&oe=UTF-8
+        // https://www.tutorialspoint.com/program-to-find-line-passing-through-2-points-in-cplusplus
+        // https://math.stackexchange.com/questions/2158172/formula-of-the-straight-line-through-two-points
+        // https://www.codeproject.com/Questions/224182/Get-all-points-in-a-Line
+        // https://www.google.com/search?client=opera-gx&q=cpp+straight+line+from+2+points+math&sourceid=opera&ie=UTF-8&oe=UTF-8
+
         if (pixel.relativePos.x == endPoint.x && pixel.relativePos.y == endPoint.y)
         {
             SDL_SetRenderDrawColor(renderer, selectedProject->brush.colour.r, selectedProject->brush.colour.g, selectedProject->brush.colour.b, selectedProject->brush.colour.a);
@@ -399,6 +563,31 @@ namespace SpriteLab
             }
         }
 
+        // The below would also work. Check what is more efficent
+        //for (int y = -1; y <= 1; y++)
+        //{
+        //    for (int x = -1; x <= 1; x++)
+        //    {
+        //        if (x == 0 && y == 0)
+        //        {
+        //            continue;
+        //        }
+
+        //        int xDifference = (selectedProject->canvasMaxPos.x - selectedProject->canvasMinPos.x) / selectedProject->projectSettings.size.x;
+        //        int yDifference = (selectedProject->canvasMaxPos.y - selectedProject->canvasMinPos.y) / selectedProject->projectSettings.size.y;
+
+        //        pair pixelPair = make_pair(pixel.relativePos.x + x, pixel.relativePos.y + y);
+        //        if (selectedProject->selectedLayer->pixels.find(pixelPair) != selectedProject->selectedLayer->pixels.end())
+        //        {
+        //            pixels.push_back(selectedProject->selectedLayer->pixels[pixelPair]);
+        //        }
+        //        else if (!pixel.exists)
+        //        {
+        //            pixels.push_back({ {pixel.rect.x + (x * xDifference), pixel.rect.y + (y * yDifference), pixel.rect.w, pixel.rect.h}, {pixel.relativePos.x + x, pixel.relativePos.y + y}, {0, 0, 0, 0}, false });
+        //        }
+        //    }
+        //}
+
         int closestDistance = 99999;
         Pixel closestPixel;
         for (const Pixel& pixel : pixels) // ---------------------- Todo: Calculate this in the loop above ----------------------
@@ -418,7 +607,8 @@ namespace SpriteLab
         SDL_RenderFillRect(renderer, &pixel.rect);
     }
 
-    void LineTool(int mouseX, int mouseY, int width, ImVec2 size)
+    // -------------- Todo: Doesn't let the user start the line on the very left pixels --------------
+    void LineTool(int mouseX, int mouseY, int width, ImVec2 size) // Todo: Check all 6 directions and determine which 2-3 to use so then the other ones wont be calculated as distance since we know its not in that direciton
     {
         ImVec2 canvasPos = selectedProject->canvasMinPos;
 
@@ -453,10 +643,17 @@ namespace SpriteLab
 
     void SpriteLab::RenderLayersMenu()
     {
+        // ------- Either I can save the selectedProject->layers as textures then load them on to buttons, or render them pixel by pixel in child windows -------
+        // Texture may be best although I should update texture only after not making any changes for 1 second. Although check performance difference because it seems fine rn
+        //  but photoshop waits until the user lifts mouse button, maybe that is how I should do it. Once the user lifts mouse button from painting, render the new canvas
+        // todo: Create the texture in RenderCanvas() since pixels are already being looped through, no need to do it twice
+
         int width, height;
         SDL_GetWindowSize(window, &width, &height);
         if (resetLayersMenu)
         {
+            // Todo: Check if toolbar is in same place and if it is, recalculate position to acount for recent colour buttons (or maybe if when its
+            //  adding the recent colors buttons check if its the same position and store in a variable if it has been changed.
             ImGui::SetNextWindowPos(ImVec2(width-200, 90));
             ImGui::SetNextWindowSize(ImVec2(200, height-140));
             resetLayersMenu = false;
@@ -466,6 +663,12 @@ namespace SpriteLab
 
         int nextYPos = 20;
         int index = 0;
+        //if (!selectedProject)
+        //{
+        //    ImGui::End();
+        //    ImGui::PopStyleColor();
+        //    return;
+        //}
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
@@ -527,12 +730,13 @@ namespace SpriteLab
             }
 
             bool breakLoop = false;
-            if (layerHovered && selectedProject->layers.size() > 1)
+            if (layerHovered && selectedProject->layers.size() > 1) // Todo: Delete button won't show up for selected project
             {
                 ImGui::SetCursorPos(ImVec2(30, nextYPos + 5));
                 ImGui::Image(textures["DeleteIcon"], ImVec2(25, 25));
-                if (ImGui::IsItemClicked(0))
+                if (ImGui::IsItemClicked(0)) // Todo: Add a popup asking if the user is sure they want to delete the layer
                 {
+                    // Todo: Fix this so when the user deletes a layer and its not the project the user selected, keep it at that project. Currently I am setting it to 0 to fix an issue.
                     for (auto it = selectedProject->layers.begin(); it != selectedProject->layers.end(); ++it) {
                         if (&(*it) == &layer) {
                             selectedProject->layers.erase(it);
@@ -571,11 +775,12 @@ namespace SpriteLab
 
     void SpriteLab::RenderCanvas()
     {
+        //if (!selectedProject) return;
         int width, height;
         SDL_GetWindowSize(window, &width, &height);
         ImGui::SetNextWindowPos(ImVec2(50, 90));
         ImGui::SetNextWindowSize(ImVec2(width - 100, height - 140));
-        int diff = 20;
+        int diff = 20; // The difference between the top of the canvas to the top of the window, and the bottom of the canvas to the bottom of the window. Should do math rather than hardcode this. Will need to fix this in other places too.
         ImGui::SetNextWindowBgAlpha(0.0f);
         ImGui::Begin("Canvas", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
         if (!selectedProject->bestZoomSet)
@@ -641,8 +846,9 @@ namespace SpriteLab
 
         int index = -1;
         int nextX = 5;
-        for (Project& project : projects)
+        for (Project& project : projects) // Make the X highlight when hovered
         {
+            // ---------------------- Todo: Make selected project high lighted ----------------------
             string projectName;
             if (project.name.size() > 17) projectName = project.name.substr(0, 17) + "...";
             else projectName = project.name;
@@ -663,6 +869,8 @@ namespace SpriteLab
             ImGui::SetCursorPos(ImVec2(nextX + 155, 5));
             if (ImGui::Button(("X##" + to_string(index) + "").c_str(), ImVec2(20, 20)))
             {
+                // ------------------ Todo: Ask if user wants to save before closing also do something if the project is the only one opened ------------------
+                // Todo: Fix this so when the user deletes a project and its not the project the user selected, keep it at that project. Currently I am setting it to 0 to fix an issue.
                 for (auto it = projects.begin(); it != projects.end(); ++it) {
                     if (&(*it) == &project) {
                         projects.erase(it);
@@ -701,11 +909,42 @@ namespace SpriteLab
         }
         ImGui::Begin("##TopToolbar", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
 
+        if (selectedProject->selectedTool == PaintBrush || selectedProject->selectedTool == PaintBucket || selectedProject->selectedTool == Line )
+        {
+            int pushNextItem = 0;
+            if (selectedProject->selectedTool != PaintBucket)
+            {
+                //totalWidth += 200;
+                ImGui::SetCursorPos(ImVec2((width / 2) - 100 - 90, 10));
+                ImGui::Text("Size");
+                ImGui::SameLine();
+                ImGui::PushTextWrapPos(0.0f);
+                char xBuffer[256] = {};
+                sprintf_s(xBuffer, sizeof(xBuffer), "%d", selectedProject->brush.size);
+                ImGui::SetNextItemWidth(50);
+                if (ImGui::InputText("##brushSize", xBuffer, sizeof(xBuffer), ImGuiInputTextFlags_EnterReturnsTrue) && round(static_cast<unsigned char>(stof(xBuffer))) > 0) // Todo: Can probably remove round here
+                    selectedProject->brush.size = round(static_cast<unsigned char>(stof(xBuffer)));
+                ImGui::PopTextWrapPos();
+                pushNextItem = 120;
+            }
+            ImGui::SetCursorPos(ImVec2((width / 2) - 110 + pushNextItem, 10));
+            ImGui::Text("Opacity");
+            ImGui::SameLine();
+            ImGui::PushTextWrapPos(0.0f);
+            char xBuffer[256] = {};
+            sprintf_s(xBuffer, sizeof(xBuffer), "%d", selectedProject->brush.colour.a);
+            ImGui::SetNextItemWidth(50);
+            if (ImGui::InputText("##brushOpacity", xBuffer, sizeof(xBuffer), ImGuiInputTextFlags_EnterReturnsTrue) && round(static_cast<unsigned char>(stof(xBuffer))) >= 0 && static_cast<unsigned char>(stof(xBuffer)) <= 255)
+                SetBrushColour(selectedProject, &selectedProject->brush, { selectedProject->brush.colour.a, selectedProject->brush.colour.g, selectedProject->brush.colour.b, static_cast<unsigned char>(stof(xBuffer)) });
+            ImGui::PopTextWrapPos();
+        }
+
         ImGui::End();
     }
 
     void SpriteLab::RenderToolBar()
     {
+        //if (!selectedProject) return;
         int width, height;
         SDL_GetWindowSize(window, &width, &height);
         int recentColoursCount = (selectedProject->recentColours.size() < 3) ? selectedProject->recentColours.size() : 3;
@@ -713,6 +952,7 @@ namespace SpriteLab
         ImGui::SetNextWindowSize(ImVec2(40, 60 + (toolButtons.size() * 35) + (recentColoursCount * 31)));
         if (resetToolbar)
         {
+            // Todo: Check if toolbar is in same place and if it is, recalculate position
             ImGui::SetNextWindowPos(ImVec2(60, height/2 - 83));
             ImGui::SetNextWindowBgAlpha(100.0f);
             resetToolbar = false;
@@ -858,7 +1098,7 @@ namespace SpriteLab
 
         int nextY = 150;
         int recentProjectCount = 0;
-        for (string projectPath : userSettings.recentProjects)
+        for (string projectPath : userSettings.recentProjects) // Todo: Add name length limit
         {
             if (recentProjectCount >= 6) break;
             ImGui::SetCursorPos(ImVec2(20, nextY));
@@ -867,7 +1107,107 @@ namespace SpriteLab
                 userSettings.recentProjects.erase(std::remove(userSettings.recentProjects.begin(), userSettings.recentProjects.end(), projectPath), userSettings.recentProjects.end());
                 continue;
             }
-            if (ImGui::Button(filesystem::path(projectPath).filename().string().c_str(), ImVec2(260, 30)))
+            if (ImGui::Button(filesystem::path(projectPath).filename().string().c_str(), ImVec2(260, 30))) // Todo: Maybe don't load each recent project to reduce resource usage.
+            {
+                Project project = LoadProject(projectPath);
+                bool alreadyOpen = false;
+
+                for (Project& project2 : projects)
+                {
+                    if (!project2.Compare(project)) continue;
+                    alreadyOpen = true;
+                    break;
+                }
+
+                if (!alreadyOpen)
+                {
+                    renderProjectsMenu = false;
+                    projects.push_back(project);
+                    selectedProject = &projects.back();
+                    SpriteLab::selectedProject->projectSettings.size = ImVec2(10, 10);
+                    SpriteLab::selectedProject->layers.push_back({});
+                    SpriteLab::selectedProject->selectedLayer = &SpriteLab::selectedProject->layers[0];
+
+                    SDL_DisplayMode dm;
+                    SDL_GetDesktopDisplayMode(0, &dm);
+                    int width = dm.w;
+                    int height = dm.h - 50;
+                    SDL_SetWindowMinimumSize(window, 960, 540);
+                    SDL_SetWindowSize(window, width, height);
+                    SDL_SetWindowPosition(window, 0, 25);
+                }
+            }
+            nextY += 40;
+            recentProjectCount++;
+        }
+
+        ImGui::End();
+    }
+
+    void SpriteLab::RenderNewProjectsMenu()
+    {
+        if (!renderProjectsMenu) return;
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(800, 600));
+        ImGui::Begin("Projects Menu", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
+
+        ImGui::SetCursorPos(ImVec2(230, 30));
+        ImGui::PushFont(FontManager::GetFont("BoldMarker", 90, false));
+        ImGui::Text("SpriteLab");
+        ImGui::PopFont();
+
+        ImGui::PushFont(FontManager::GetFont("Familiar-Pro-Bold", 30, false));
+        ImGui::SetCursorPos(ImVec2(150, 150));
+        if (ImGui::Button("Create Project", ImVec2(200, 75)))
+        {
+            renderProjectsMenu = false;
+            OpenCreateProjectMenu(false);
+            SDL_SetWindowSize(window, 250, 250);
+        }
+
+        ImGui::SetCursorPos(ImVec2(440, 150));
+        if (ImGui::Button("Open Project", ImVec2(200, 75)))
+        {
+            string path = LoadProjectDialog(window, renderer);
+            if (path != "null")
+            {
+                SDL_MaximizeWindow(window);
+                renderProjectsMenu = false;
+                projects.push_back(LoadProject(path));
+                selectedProject = &projects.back();
+
+                SDL_DisplayMode dm;
+                SDL_GetDesktopDisplayMode(0, &dm);
+                int width = dm.w;
+                int height = dm.h - 50;
+                SDL_SetWindowMinimumSize(window, 960, 540);
+                SDL_SetWindowSize(window, width, height);
+                SDL_SetWindowPosition(window, 0, 25);
+            }
+        }
+        ImGui::PopFont();
+
+        ImGui::NewLine();
+        ImGui::Separator();
+
+        ImGui::SetCursorPos(ImVec2(275, 262));
+        ImGui::PushFont(FontManager::GetFont("Familiar-Pro-Bold", 40, false));
+        ImGui::Text("Recent Projects");
+        ImGui::PopFont();
+
+
+        int nextY = 315;
+        int recentProjectCount = 0;
+        for (string projectPath : userSettings.recentProjects) // Todo: Add name length limit
+        {
+            if (recentProjectCount >= 7) break;
+            ImGui::SetCursorPos(ImVec2(272, nextY));
+            if (!filesystem::exists(projectPath))
+            {
+                userSettings.recentProjects.erase(std::remove(userSettings.recentProjects.begin(), userSettings.recentProjects.end(), projectPath), userSettings.recentProjects.end());
+                continue;
+            }
+            if (ImGui::Button(filesystem::path(projectPath).filename().string().c_str(), ImVec2(260, 30))) // Todo: Maybe don't load each recent project to reduce resource usage.
             {
                 Project project = LoadProject(projectPath);
                 bool alreadyOpen = false;
@@ -911,6 +1251,7 @@ namespace SpriteLab
         SDL_GetWindowSize(window, &width, &height);
         ImGui::SetNextWindowSize(ImVec2(250, 250));
         ImGui::SetNextWindowPos(ImVec2((float)(width - 250) / 2, (float)(height - 250) / 2));
+        ImGui::SetNextWindowBgAlpha(0.0f);
         //ImGui::SetNextWindowPos(ImVec2(0, 0));
 
         ImGuiWindowFlags flags;
@@ -959,6 +1300,9 @@ namespace SpriteLab
 
             if (newName != "")
             {
+                if (projects.empty())
+                    SDL_MaximizeWindow(window);
+
                 renderCreateProjectMenu = false;
                 nameBuffer[0] = '\0';
 
@@ -997,7 +1341,7 @@ namespace SpriteLab
             if (!selectedProject)
             {
                 renderProjectsMenu = true;
-                SDL_SetWindowSize(window, 300, 400);
+                SDL_SetWindowSize(window, 800, 600);
             }
         }
 
@@ -1022,7 +1366,8 @@ namespace SpriteLab
             RenderProjectTabs();
         }
 
-        RenderProjectsMenu();
+        //RenderProjectsMenu();
+        RenderNewProjectsMenu();
         RenderCreateProjectMenu();
 
         ImGui::Render();
@@ -1033,6 +1378,14 @@ namespace SpriteLab
         for (SDL_Texture* texture : destroyTexture)
             SDL_DestroyTexture(texture);
         destroyTexture.clear();
+    }
+
+    void InitFonts()
+    {
+        FontManager::InitFontManager();
+        // Todo: Make sure each of the fonts below are being used.
+        FontManager::LoadFonts("Familiar-Pro-Bold", { 15, 18, 20, 25, 30, 40 });
+        FontManager::LoadFont("BoldMarker", 90);
     }
 
     void SpriteLab::InitImages()
@@ -1048,7 +1401,7 @@ namespace SpriteLab
             SDL_Surface* surface = IMG_Load(entry.string().c_str());
             textures[entry.stem().string()] = SDL_CreateTextureFromSurface(renderer, surface);
             SDL_FreeSurface(surface);
-            cout << "Image Loaded - " + entry.stem().string() << endl;
+            //cout << "Image Loaded - " + entry.stem().string() << endl;
         }
 
 
@@ -1080,9 +1433,11 @@ namespace SpriteLab
         window = SDL_CreateWindow("SpriteLab v0.1",
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
-            300, 400,
+            800, 600,
             SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
         SDL_SetWindowResizable(window, SDL_FALSE);
+        // 300, 400 W and H for old design
+        // 
         //SDL_SetWindowMinimumSize(window, 960, 540);
 
         if (!window) {
@@ -1107,7 +1462,7 @@ namespace SpriteLab
         ImGuiIO& io = ImGui::GetIO();
         (void)io;
         io.ConfigWindowsMoveFromTitleBarOnly = true;
-        //InitFonts();
+        InitFonts();
         ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
         ImGui_ImplSDLRenderer_Init(renderer);
 
@@ -1198,6 +1553,7 @@ namespace SpriteLab
             ImGui_ImplSDL2_ProcessEvent(&event);
             if (event.type == SDL_QUIT && !savePopupOpened)
             {
+                // Todo: Check if changes were made since last save, if there were, then open save popup
                 SaveSettings();
                 exit(0);
             }
@@ -1207,6 +1563,8 @@ namespace SpriteLab
                 keysPressed.insert(event.key.keysym.sym);
                 ShortcutKeys();
             }
+            //else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) leftMouseButtonPressed = true;
+            //else if (event.type == SDL_MOUSEBUTTONUP && event.button.button == SDL_BUTTON_LEFT) leftMouseButtonPressed = false;
         }
     }
 }
