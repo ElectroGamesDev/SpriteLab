@@ -37,6 +37,7 @@ namespace SpriteLab
     void RenderBackground();
     void RenderColourPicker(ImVec2 pos);
     void RenderProjectsMenu();
+    void RenderNewProjectsMenu();
     void RenderCreateProjectMenu();
 
     //float GetBestCanvasZoom();

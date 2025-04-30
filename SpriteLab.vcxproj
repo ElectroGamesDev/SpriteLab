@@ -71,20 +71,20 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\imgui;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)imgui;$(SolutionDir)SDL2;$(SolutionDir)include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\imgui;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)imgui;$(SolutionDir)SDL2;$(SolutionDir)include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\imgui;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)imgui;$(SolutionDir)SDL2;$(SolutionDir)include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\imgui;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)imgui;$(SolutionDir)SDL2;$(SolutionDir)include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -92,13 +92,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\imgui;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)include\SDL2;$(SolutionDir)imgui;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib\SDL2;$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -110,7 +110,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\imgui;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)include\SDL2;$(SolutionDir)imgui;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -118,7 +118,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib\SDL2;$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -128,13 +128,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\imgui;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)include\SDL2;$(SolutionDir)imgui;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib\SDL2;$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -146,7 +146,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\imgui;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)include\SDL2;$(SolutionDir)imgui;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -154,11 +154,12 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib\SDL2;C:\Users\Tristyn\Documents\Visual Studio Projects\SpriteLab\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib\SDL2;$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="FontManager.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imgui_demo.cpp" />
     <ClCompile Include="imgui\imgui_draw.cpp" />
@@ -172,6 +173,7 @@
     <ClCompile Include="SpriteLab.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="FontManager.h" />
     <ClInclude Include="imgui\imconfig.h" />
     <ClInclude Include="imgui\imgui.h" />
     <ClInclude Include="imgui\imgui_impl_sdl2.h" />

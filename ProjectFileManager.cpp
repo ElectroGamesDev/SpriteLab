@@ -163,7 +163,7 @@ namespace SpriteLab
         project->saved = true;
     }
 
-    Project LoadProject(std::filesystem::path path)
+    Project LoadProject(std::filesystem::path path) // Todo: If project is already open, set project as selected
     {
         Project project;
 
@@ -173,6 +173,8 @@ namespace SpriteLab
             std::cerr << "Failed to open project: " << path.string() << std::endl;
             return project;
         }
+
+        // --------------- TODO: Instead of doing all of that below to get file contents, do it like how I did it in GetSetting() ---------------
 
         inFile.seekg(0, std::ios::end);
         std::streampos fileSize = inFile.tellg();
@@ -310,6 +312,13 @@ namespace SpriteLab
                 else pixelData[index++] = 255;
             }
         }
+
+        /*
+           You can configure it with these global variables:
+int stbi_write_tga_with_rle;             // defaults to true; set to 0 to disable RLE
+int stbi_write_png_compression_level;    // defaults to 8; set to higher for more compression
+int stbi_write_force_png_filter;         // defaults to -1; set to 0..5 to force a filter mode
+                  */
 
         int success = 0;
         if (path.extension().string() == ".png")
